@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<mule xmlns:api-gateway="http://www.mulesoft.org/schema/mule/api-gateway" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:apikit-soap="http://www.mulesoft.org/schema/mule/apikit-soap" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd http://www.mulesoft.org/schema/mule/apikit-soap http://www.mulesoft.org/schema/mule/apikit-soap/current/mule-apikit-soap.xsd http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/api-gateway http://www.mulesoft.org/schema/mule/api-gateway/current/mule-api-gateway.xsd">
+    <http:listener-config name="api-httpListenerConfig">
+        <http:listener-connection host="${http.host}" port="${http.port}"/>
+    </http:listener-config>
+    <apikit-soap:config httpStatusVarName="httpStatus" name="soapkit-config" port="BookTicket" service="BookTicket" wsdlLocation="BookTicket.wsdl"/>
+    <http:request-config name="system-api-host-configuration" doc:name="HTTP Request configuration" doc:id="70f26257-faf0-4b20-9c6e-33ce2b447c08">
+		<http:request-connection host="${sys-api.host}" />
+	</http:request-config>
+	<api-gateway:autodiscovery apiId="17499729" ignoreBasePath="true" doc:name="API Autodiscovery" doc:id="a89a1cf2-9d31-476d-848e-8df8645c95c6" flowRef="api-main" />
+	<configuration-properties doc:name="Configuration properties" doc:id="c2f42917-3dd9-4d5f-a966-2835a79780e3" file="config.yaml" />
+	<flow name="api-main">
+        <http:listener config-ref="api-httpListenerConfig" path="/order/bookticket">
+            <http:response statusCode="#[attributes.additionalTransportData.statusCode default 200]">
+                <http:headers><![CDATA[#[attributes.protocolHeaders default {}]]]></http:headers>
+            </http:response>
+            <http:error-response statusCode="#[attributes.additionalTransportData.statusCode default 500]">
+                <http:body><![CDATA[#[payload]]]></http:body>
+                <http:headers><![CDATA[#[attributes.protocolHeaders default {}]]]></http:headers>
+            </http:error-response>
+        </http:listener>
+        <apikit-soap:router config-ref="soapkit-config">
+            <apikit-soap:attributes><![CDATA[#[%dw 2.0
+              output application/java
+              ---
+              {
+                  headers: attributes.headers,
+                  method: attributes.method,
+                  queryString: attributes.queryString
+            }]]]></apikit-soap:attributes>
+        </apikit-soap:router>
+    </flow>
+	<flow name="BookMovieTicket:\soapkit-config" doc:id="65d065d9-b894-4b49-a78a-f7c19af1366b">
+		<http:request method="GET" doc:name="Get Seat Availibility" doc:id="8dddecda-73ff-43fb-8fde-bdbfd438fa70" config-ref="system-api-host-configuration" path="/api/slotavailibility" target="response">
+			<http:query-params><![CDATA[#[output application/java
+---
+{
+	"Date" : payload.body.BookMovieTicket.Date,
+	"T_ID" : payload.body.BookMovieTicket.TID,
+	"Slot" : payload.body.BookMovieTicket.Slot,
+	"M_ID" : payload.body.BookMovieTicket.MID
+}]]]></http:query-params>
+		</http:request>
+		<logger level="INFO" doc:name="Logger" doc:id="5a6417e4-e81b-441d-a62c-fe7e9cd6566b" message="#[typeOf(vars.response[0].AVAILABLE_SEATS)]"/>
+		<choice doc:name="Choice" doc:id="22d43d3f-3715-493a-af82-a233cc25eec8" >
+			<when expression="#[(payload.body.BookMovieTicket.Count &lt; vars.response[0].AVAILABLE_SEATS) and (vars.response[0].STATUS == 'ACTIVE')]">
+				<http:request method="POST" doc:name="Generate Booking Details" doc:id="1664e7b6-0fd9-4b9b-a80f-767130de734f" config-ref="system-api-host-configuration" target="bookingVars" path="/api/booking/create">
+					<http:body ><![CDATA[#[%dw 2.0
+output application/json
+---
+{
+    "M_ID":payload.body.BookMovieTicket.MID,
+    "T_ID":payload.body.BookMovieTicket.TID,
+    "SEATS":payload.body.BookMovieTicket.Count,
+    "SLOT":payload.body.BookMovieTicket.Slot,
+    "DATE":payload.body.BookMovieTicket.Date,
+    "TOTAL_AMOUNT":(payload.body.BookMovieTicket.Price as Number * payload.body.BookMovieTicket.Count as Number) as String
+}]]]></http:body>
+				</http:request>
+				<ee:transform doc:name="Tickets Available">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/xml
+---
+response :
+	{
+		"StatusCode": "200",
+		"Description": "Booking Status - Please make the payment",
+		"BID": vars.bookingVars.B_ID,
+		"NoOfSeats": payload.body.BookMovieTicket.Count,
+		"TotalPrice": "Rs " ++ (payload.body.BookMovieTicket.Price as Number * payload.body.BookMovieTicket.Count as Number) as String	
+	}]]>
+                </ee:set-payload>
+            </ee:message>
+        </ee:transform>
+			</when>
+			<when expression="#[(payload.body.BookMovieTicket.Count &gt; vars.response[0].AVAILABLE_SEATS) and (vars.response[0].STATUS == 'ACTIVE')]">
+				<ee:transform doc:name="Too many seats selected" doc:id="263d6d36-f578-4e4c-9da5-e990c36658e3" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/xml
+---
+response :
+	{
+		"StatusCode": "200",
+		"Description": "Booking Status - Number of seats exceeds the available seats. Available Seats : " ++ vars.response[0].AVAILABLE_SEATS as String 	
+	}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<when expression="#[vars.response.AVAILABLE_SEATS != 'ACTIVE']">
+				<ee:transform doc:name="Slot is not Available" doc:id="31ed7f22-def2-4c8e-9388-16f57e203a4d" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/xml
+---
+response :
+	{
+		"StatusCode": "200",
+		"Description": "Booking Status - This slot is not available for booking, please select some other slot." 	
+	}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<otherwise >
+				<ee:transform doc:name="Transform Message" doc:id="70567f25-02ba-4eeb-a852-44cd0c3294de" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/xml
+---
+response :
+	{
+		"StatusCode": "200",
+		"Description": "Booking Status - Some issue at the backend, please try again later!!" 	
+	}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+		<error-handler >
+			<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="47991dd4-78b5-4034-bdea-5e9730606552" >
+				<ee:transform doc:name="Transform Message" doc:id="a1d0713b-1209-43e4-a312-f37ae6cde9d9" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/xml
+---
+response :
+	{
+		"StatusCode": "400",
+		"Description": "Something went wrong, please try again later!!" 	
+	}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</on-error-continue>
+		</error-handler>
+    </flow>
+</mule>

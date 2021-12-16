@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:munit="http://www.mulesoft.org/schema/mule/munit" xmlns:munit-tools="http://www.mulesoft.org/schema/mule/munit-tools"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xsi:schemaLocation="
+		http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+		http://www.mulesoft.org/schema/mule/munit http://www.mulesoft.org/schema/mule/munit/current/mule-munit.xsd
+		http://www.mulesoft.org/schema/mule/munit-tools  http://www.mulesoft.org/schema/mule/munit-tools/current/mule-munit-tools.xsd">
+	<munit:config name="int-prc-order-ticket-api-test-suite.xml" />
+	<munit:test name="int-prc-order-ticket-api-test-suite-BookMovieTicket:\soapkit-configTest" doc:id="898edf55-2793-4254-a864-5df2910213bd" description="Test">
+		<munit:execution >
+			<scatter-gather doc:name="Scatter-Gather" doc:id="00cff764-24d0-401f-a724-2593bfe8d825" >
+				<route >
+					<munit:set-event doc:name="Set Event" doc:id="779b1640-cbb3-4ddc-aad0-90fe2348f3a1" >
+						<munit:payload value="#[{body:{BookMovieTicket:{MID:'100',TID:'201',Slot:'11:00',Price:'200',Count:'10',Date:'2021-12-14'}}}]" />
+					</munit:set-event>
+					<flow-ref doc:name="Flow-ref to BookMovieTicket:\soapkit-config" doc:id="0d9dff73-02a2-4a32-a844-00cda1ad5a79" name="BookMovieTicket:\soapkit-config" />
+				</route>
+				<route >
+					<munit:set-event doc:name="Set Event" doc:id="32098734-8a78-49a0-aea7-11bbcb3c31db" >
+						<munit:payload value="#[{body:{BookMovieTicket:{MID:'100',TID:'201',Slot:'19:00',Price:'200',Count:'1',Date:'2021-12-14'}}}]" />
+					</munit:set-event>
+					<flow-ref doc:name="Flow Reference BookMovieTicket:\soapkit-config" doc:id="fba3e314-4ae5-49e3-9510-db1b2fac39f8" name="BookMovieTicket:\soapkit-config"/>
+				</route>
+				<route >
+					<munit:set-event doc:name="Set Event" doc:id="ea9e3505-1de6-4a5d-845b-3683652fa704" >
+						<munit:payload value="#[{body:{BookMovieTicket:{MID:'100',TID:'201',Slot:'11:00',Price:'200',Count:'100',Date:'2021-12-14'}}}]" />
+					</munit:set-event>
+					<flow-ref doc:name="Flow Reference  BookMovieTicket:\soapkit-config" doc:id="eb3599e4-31f7-413d-b7c3-377267d24104" name="BookMovieTicket:\soapkit-config"/>
+				</route>
+				<route >
+					<munit:set-event doc:name="Set Event" doc:id="6f2edcc0-6d79-4b97-a950-4b21d7a0a3c3" >
+						<munit:payload value="#[{body:{BookMovieTicket:{MID:'105',TID:'201',Slot:'11:00',Price:'200',Count:'100',Date:'2021-12-14'}}}]" />
+					</munit:set-event>
+					<flow-ref doc:name="Flow Reference  BookMovieTicket:\soapkit-config" doc:id="10e973c5-f013-4291-a204-329ae6566b37" name="BookMovieTicket:\soapkit-config"/>
+				</route>
+			</scatter-gather>
+		</munit:execution>
+		<munit:validation >
+			<munit-tools:assert-that doc:name="Assert that" doc:id="857bbbcc-32d8-42f4-b33b-0d417f85e5b9" expression="#[payload]" is="#[MunitTools::notNullValue()]"/>
+		</munit:validation>
+	</munit:test>
+
+
+</mule>
